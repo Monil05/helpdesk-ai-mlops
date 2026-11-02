@@ -1,105 +1,139 @@
 # HelpDesk AI
 
-HelpDesk AI is a small ticketing application that demonstrates an end-to-end MLOps workflow. Users submit a title and issue description; a saved TF-IDF and Logistic Regression pipeline suggests one of eight issue categories and reports its confidence. The user selects priority, and SQLite stores the ticket and its status.
+HelpDesk AI is an end-to-end MLOps demonstration: it combines a ticket-classification model with a Streamlit helpdesk application, persistent ticket management, automated checks, container packaging, and operational monitoring. The project also includes optional Azure Kubernetes Service (AKS) infrastructure and deployment workflows.
 
-## Dataset and trained model
+![HelpDesk AI delivery flow](image/image4.png)
+![HelpDesk AI delivery flow and deployed architecture](image/image5.png)
+![Ticket submission screen](image/image.png)
+![Ticket dashboard](image/image-1.png)
+![Grafana monitoring dashboard](image/image2.png)
+![Prometheus target status](image/image3.png)
 
-The workspace dataset is `data/all_tickets_processed_improved_v3.csv`. It is 14.6 MB and contains 47,837 rows with columns `Document` and `Topic_group`. The observed categories are Hardware, Access, Miscellaneous, HR Support, Purchase, Administrative rights, Storage, and Internal Project. No empty cells or exact duplicate rows were found in the initial audit.
 
-The dataset source and license were not supplied with the workspace, and public copies with the same filename do not establish this file's provenance. The CSV is excluded from Git and Docker. Confirm its license with the original provider before redistribution. The trained model metadata records this limitation.
+## What the project does
 
-Create a Python 3.12 virtual environment, install dependencies, and train the model:
+- Accepts support ticket titles, descriptions, and user-selected priorities.
+- Predicts one of eight ticket categories with a trained scikit-learn model and displays its confidence.
+- Stores tickets in SQLite and provides a searchable dashboard for reviewing tickets and updating their statuses.
+- Exposes application and model metrics for Prometheus, with a preconfigured Grafana dashboard.
+- Tests changes and builds a Docker image in GitHub Actions. Separate, manually triggered workflows publish the image and deploy it to AKS.
+
+## How the flow works
+
+The diagrams above show both the user-facing application and the delivery and deployment path:
+
+1. **Prepare the model.** Offline training reads the labeled ticket dataset, cleans its text and labels, and trains a TF-IDF plus Logistic Regression pipeline. It saves the model and evaluation metadata under `models/`. Training is run explicitly; the application does not train at startup.
+2. **Submit and classify a ticket.** A user enters a title and description in Streamlit and selects a priority. The app loads the saved model, predicts a category and confidence from the description, and saves the ticket with a `New` status to SQLite.
+3. **Review tickets.** The dashboard shows ticket totals and statuses, supports category, priority, and status filters plus text search, and lets users update a ticket's status.
+4. **Observe the application.** The app exposes prediction counts, category counts, errors, latency, and ticket-status gauges on its metrics endpoint. Prometheus scrapes those metrics; Grafana queries Prometheus and presents the provisioned dashboard.
+5. **Validate and package changes.** On pushes and pull requests, GitHub Actions installs the development dependencies, runs the tests, checks a sample prediction using the packaged model, and builds the container image. This CI workflow does not train, publish, or deploy the model.
+6. **Publish and deploy when requested.** A manually triggered workflow can publish a tagged image to GitHub Container Registry (GHCR). A separate manual workflow authenticates to Azure through GitHub OIDC, applies the Kubernetes manifests, updates the application image, and checks rollout status.
+7. **Provision Azure infrastructure as needed.** Terraform defines an AKS cluster and a resource group. The Kubernetes manifests run the app, Prometheus, and Grafana; the app is exposed through a LoadBalancer, while the monitoring services remain internal.
+
+## Requirements
+
+- Python 3.12 for local development and model training
+- Docker with the Docker Compose plugin for the containerized app and monitoring stack
+- Optional for cloud deployment: Terraform, Azure CLI, `kubectl`, an Azure subscription, and GitHub Actions configuration for Azure OIDC
+
+## Set up and run locally
+
+From the repository root, create and activate a virtual environment, then install the development dependencies:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
-python -m ml.train
 ```
 
-Training validates the CSV columns, drops blank text/labels and duplicate text/label rows, then performs a seeded stratified 80/20 split. It saves the complete inference pipeline to `models/ticket_classifier.joblib` and holdout metrics, class distribution, classification report, and confusion matrix to `models/model_metadata.json`. The Streamlit app loads these files; it does not train at startup.
-
-## Run locally
+The trained model is included in `models/`, so the app can be started without retraining:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
 streamlit run app/streamlit_app.py
 ```
 
-Open <http://localhost:8501>. The metrics endpoint is at <http://localhost:8000/metrics>. Tickets are stored at `data/tickets.db` by default; set `TICKET_DB_PATH` to change it.
+Open [http://localhost:8501](http://localhost:8501). The Prometheus metrics endpoint is [http://localhost:8000/metrics](http://localhost:8000/metrics). By default, local ticket data is stored in `data/tickets.db`; set `TICKET_DB_PATH` to use a different SQLite file.
 
-## Tests
+### Retrain the model (optional)
+
+The training dataset is `data/all_tickets_processed_improved_v3.csv`. Training requires the CSV to be present locally:
+
+```powershell
+python -m ml.train
+```
+
+The script validates the expected `Document` and `Topic_group` columns, removes blank and duplicate examples, makes a seeded stratified 80/20 train/test split, and saves the trained pipeline and evaluation metadata to `models/ticket_classifier.joblib` and `models/model_metadata.json`.
+
+The current model uses TF-IDF unigrams and bigrams with Logistic Regression. Its recorded holdout accuracy is approximately 86.1%. The dataset's source and redistribution license have not been verified; confirm them with the original provider before sharing the CSV or derived artifacts.
+
+## Run tests
 
 ```powershell
 python -m pytest -q
 ```
 
-Tests cover the prediction interface, SQLite create/list/status operations, and submission logic. CI also loads the packaged model, runs a sample prediction, and builds the Docker image.
+The tests cover classification, ticket submission logic, and SQLite operations. CI also checks a sample prediction and builds the Docker image.
 
-## Docker and monitoring
+## Run with Docker Compose
 
-The image includes application code, dependencies, and the trained model. The raw CSV is excluded. To run the app plus Prometheus and Grafana:
+Compose starts the application, Prometheus, and Grafana. Set local Grafana credentials before starting the stack:
 
 ```powershell
 Copy-Item .env.example .env
-# Edit .env and set a private local Grafana demo password.
+# Edit .env and replace the example Grafana password.
 docker compose up --build
 ```
 
-Open Streamlit at <http://localhost:8501>, Prometheus at <http://localhost:9090>, and Grafana at <http://localhost:3000>. Grafana is provisioned with a Prometheus datasource and a dashboard for prediction totals, category counts, errors, latency, and ticket status counts. Metrics have bounded labels; ticket descriptions and IDs are never labels. Local Compose volumes preserve tickets and monitoring data across container restarts.
+Open the services at:
+
+| Service | URL |
+| --- | --- |
+| HelpDesk AI | [http://localhost:8501](http://localhost:8501) |
+| Prometheus | [http://localhost:9090](http://localhost:9090) |
+| Grafana | [http://localhost:3000](http://localhost:3000) |
+| App metrics | [http://localhost:8000/metrics](http://localhost:8000/metrics) |
+
+Sign in to Grafana with the username and password configured in `.env`. Compose provisions the Prometheus datasource and HelpDesk AI dashboard automatically. Named Docker volumes preserve ticket data and monitoring data between container restarts.
+
+Stop the stack with `docker compose down`. To also delete its stored ticket and monitoring data, use `docker compose down --volumes`.
 
 ## GitHub Actions
 
-`.github/workflows/ci.yml` runs on pushes and pull requests, installs dependencies, runs pytest, checks the packaged model, and builds the image without publishing it. `publish.yml` is manually started with a tag and uses the workflow's `GITHUB_TOKEN` to publish to GHCR. `deploy-aks.yml` is also manual and uses Azure OIDC; it expects GitHub environment `azure-demo` variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AKS_RESOURCE_GROUP`, and `AKS_CLUSTER_NAME`. Configure a federated identity for that GitHub environment and grant only the Azure roles needed to retrieve AKS user credentials and deploy. The workflow has not been run against GitHub or Azure from this workspace.
+- **CI** (`.github/workflows/ci.yml`) runs on pushes and pull requests. It tests the project, validates the packaged model, and builds—but does not publish—the Docker image.
+- **Publish** (`.github/workflows/publish.yml`) is manually triggered with an image tag and publishes the image to GHCR using `GITHUB_TOKEN`.
+- **Deploy to AKS** (`.github/workflows/deploy-aks.yml`) is manually triggered with an existing image tag. Configure the `azure-demo` GitHub environment with `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AKS_RESOURCE_GROUP`, and `AKS_CLUSTER_NAME`. The Azure identity must trust that GitHub environment through a federated credential and have the Azure permissions required to retrieve AKS credentials and deploy.
 
-For AKS, make the GHCR package public or create an `imagePullSecret` in the `helpdesk` namespace. Create Grafana credentials locally, then apply the example manifest only after replacing its placeholder:
+Before deploying, create the `helpdesk` namespace and the `grafana-credentials` Secret. For example:
 
 ```powershell
 kubectl apply -f k8s/namespace.yaml
 Copy-Item k8s/grafana-secret.yaml.example k8s/grafana-secret.yaml
-# Edit admin-password, then apply. Do not commit the edited file.
+# Edit the copied file with a private password; do not commit it.
 kubectl apply -f k8s/grafana-secret.yaml
 ```
 
-After applying the namespace and Secret, configure the application image in `k8s/app.yaml`, then apply `k8s/prometheus.yaml`, `k8s/grafana.yaml`, and `k8s/app.yaml` individually. Do not apply the example Secret file as-is. The app Service is the only LoadBalancer; Prometheus and Grafana are internal ClusterIP services. Access Grafana and Prometheus with `kubectl -n helpdesk port-forward svc/grafana 3000:3000` and `kubectl -n helpdesk port-forward svc/prometheus 9090:9090`.
-
-The AKS app uses one replica and SQLite in `emptyDir`. Ticket records are lost when the pod is replaced. Prometheus and Grafana storage is also ephemeral, which is appropriate for a short demonstration.
-
-## Terraform and Azure
-
-`infra/terraform` provisions only a resource group and an AKS cluster on the Free control-plane tier, with one fixed worker node, no autoscaling, and no ACR or managed monitoring. Region and VM SKU are required inputs because availability and quota must be verified for the active subscription first. Copy `terraform.tfvars.example` to a local `.tfvars` file after filling values; state and `.tfvars` are ignored by Git.
-
-Terraform commands for local review:
+The deployment workflow applies the Prometheus, Grafana, and app manifests, then sets the app image and waits for rollout. Update the image reference in `k8s/app.yaml` as appropriate. If the GHCR package is private, configure an `imagePullSecret` in the `helpdesk` namespace. The app Service is the only LoadBalancer; access Grafana and Prometheus with:
 
 ```powershell
+kubectl -n helpdesk port-forward svc/grafana 3000:3000
+kubectl -n helpdesk port-forward svc/prometheus 9090:9090
+```
+
+The AKS demo uses one app replica and stores SQLite data in `emptyDir`, so tickets are lost when the pod is replaced. Prometheus and Grafana storage are also ephemeral.
+
+## Optional Azure infrastructure with Terraform
+
+`infra/terraform` defines an AKS cluster and resource group; it does not provision ACR or managed monitoring. Before creating infrastructure, verify the region, VM SKU availability, subscription quota, and current costs for your Azure subscription. AKS nodes, disks, networking, and public IP resources can incur charges.
+
+Create a local `.tfvars` file from the example and fill in values verified for your subscription. The example requires a region, resource group name, cluster name, and VM SKU:
+
+```powershell
+Copy-Item infra/terraform/terraform.tfvars.example infra/terraform/local.tfvars
+# Edit local.tfvars with values verified for your subscription.
 terraform -chdir=infra/terraform fmt -check -recursive
 terraform -chdir=infra/terraform init
 terraform -chdir=infra/terraform validate
-terraform -chdir=infra/terraform plan -var-file=demo.tfvars
+terraform -chdir=infra/terraform plan -var-file=local.tfvars
 ```
 
-The cluster, worker VM, managed disks, standard load balancer/public IP, and networking are billable even when the Kubernetes control plane uses the Free tier. Stop the cluster promptly after the presentation and delete it only after reviewing the bill and explicitly choosing cleanup. No Azure resource has been created by this project setup. Azure region, quota, and price checks are pending account access and should be completed before selecting the VM SKU or generating a final deployment plan.
-
-### Azure preflight snapshot (2 Nov 2026)
-
-Read-only checks found the enabled subscription `Azure for Students`, the `centralindia` region enabled with AKS versions available, and `Standard_B2s` listed in that region (2 vCPU, 4 GiB RAM). The subscription currently uses 0 of 6 regional vCPUs and 0 of 4 Standard BS family vCPUs, so the family quota can accommodate one B2s node. The Microsoft.Compute provider namespace was registered after explicit approval; no resource group, cluster, or other infrastructure was created.
-
-Undiscounted USD retail baseline for one node in Central India: B2s VM $0.0448/hour; 32 GiB Standard SSD LRS OS disk (the tier for the configured 30 GiB disk) $2.64/month, prorated hourly; two Standard IPv4 public IPs at $0.005/hour each (AKS egress and the app LoadBalancer); AKS Free control plane $0. The first five Standard Load Balancer rules have no fixed hourly charge. This gives a baseline of about **$0.06/hour**, **$0.23 for 4 hours**, or **$1.40 for 24 hours**. Load balancer data processing and outbound bandwidth vary with traffic and are not included; taxes and any offer-specific adjustments are also excluded. Treat these as estimates, not a quote. Rates were checked with the [Azure Retail Prices API](https://learn.microsoft.com/rest/api/cost-management/retail-prices/azure-retail-prices); see Microsoft's pricing pages for [AKS](https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/), [public IPs](https://azure.microsoft.com/en-in/pricing/details/ip-addresses/), [managed disks](https://azure.microsoft.com/en-in/pricing/details/managed-disks/), and [Load Balancer](https://azure.microsoft.com/en-in/pricing/details/load-balancer/).
-
-## Presentation architecture
-
-1. A user submits a ticket in Streamlit.
-2. The app loads the saved scikit-learn pipeline and predicts a category with confidence; priority remains user-selected.
-3. The ticket and status are saved to SQLite.
-4. The app exports bounded-cardinality Prometheus metrics on port 8000. Prometheus scrapes the internal endpoint and Grafana displays the metrics.
-5. Docker packages the app and model. GitHub Actions tests the code and builds the image; a manual workflow can publish it to GHCR.
-6. Terraform defines the Azure resource group and AKS cluster. Kubernetes runs one app pod plus Prometheus and Grafana; the app is public through an Azure LoadBalancer, while monitoring is reached with port-forwarding.
-
-## Cleanup
-
-For a local Compose run, stop containers with `docker compose down`; add `-v` only if you also intend to remove the local SQLite and monitoring volumes. For Azure, use `terraform destroy` only after reviewing its plan and deciding to remove the demonstration resource group and cluster. The project workflows do not automatically destroy infrastructure.
-
-![alt text](image/image.png)
-![alt text](image/image-1.png)
-![alt text](image/image2.png)
-![alt text](image/image3.png)
+Review the plan and costs before applying. Terraform state and local `.tfvars` files are excluded from Git. To remove resources, run `terraform destroy` only after reviewing its plan and confirming that the resources should be deleted.
