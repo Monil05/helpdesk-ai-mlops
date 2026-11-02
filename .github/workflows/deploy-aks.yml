@@ -28,9 +28,9 @@ jobs:
           resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
       - uses: azure/setup-kubectl@v4
-      - uses: azure/setup-kubelogin@v1
+      - uses: azure/use-kubelogin@v1
         with:
-          version: v0.2.10
+          kubelogin-version: 'v0.2.10'
       - name: Configure Azure CLI authentication for kubectl
         run: kubelogin convert-kubeconfig -l azurecli
       - name: Select image reference
