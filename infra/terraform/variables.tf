@@ -16,6 +16,7 @@ variable "cluster_name" {
 variable "node_vm_size" {
   description = "One small VM SKU confirmed available in the selected region and subscription."
   type        = string
+  default     = "Standard_B2s_v2"
 }
 
 variable "node_count" {
