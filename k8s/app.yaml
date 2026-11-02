@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: helpdesk-app
+  namespace: helpdesk
+  labels:
+    app: helpdesk-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: helpdesk-app
+  ports:
+    - name: streamlit
+      port: 80
+      targetPort: 8501
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helpdesk-metrics
+  namespace: helpdesk
+  labels:
+    app: helpdesk-app
+spec:
+  type: ClusterIP
+  selector:
+    app: helpdesk-app
+  ports:
+    - name: metrics
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helpdesk-app
+  namespace: helpdesk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helpdesk-app
+  template:
+    metadata:
+      labels:
+        app: helpdesk-app
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: app
+          image: ghcr.io/OWNER/REPOSITORY:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: streamlit
+              containerPort: 8501
+            - name: metrics
+              containerPort: 8000
+          env:
+            - name: TICKET_DB_PATH
+              value: /app/runtime/tickets.db
+            - name: METRICS_PORT
+              value: "8000"
+          volumeMounts:
+            - name: runtime
+              mountPath: /app/runtime
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: streamlit
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: streamlit
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: runtime
+          emptyDir: {}

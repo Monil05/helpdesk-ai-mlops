@@ -1,0 +1,47 @@
+# Local datasets and ticket records
+data/*.csv
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Python environments and generated files
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.tfvars
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+.terraform/
+*.pem
+*.key
+kubeconfig*
+k8s/grafana-secret.yaml
+
+# Editors and OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+
+.env
+.env.*
+!.env.example
+data/
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+.venv/
+venv/
+.pytest_cache/

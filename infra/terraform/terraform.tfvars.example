@@ -1,0 +1,4 @@
+location           = "<verified-region>"
+resource_group_name = "<unique-resource-group-name>"
+cluster_name        = "<unique-aks-name>"
+node_vm_size        = "<verified-vm-sku>"

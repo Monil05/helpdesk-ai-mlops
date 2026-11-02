@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: HelpDesk AI
+    orgId: 1
+    folder: HelpDesk AI
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

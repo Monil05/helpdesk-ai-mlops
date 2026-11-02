@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.env
+*.tfvars
+*.tfstate*
+data/**
+tests
+infra
+k8s
+README.md

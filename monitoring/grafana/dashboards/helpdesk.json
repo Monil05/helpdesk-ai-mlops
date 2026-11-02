@@ -1,0 +1,15 @@
+{
+  "title": "HelpDesk AI",
+  "uid": "helpdesk-ai",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {"id": 1, "title": "Predictions", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(helpdesk_predictions_total)", "refId": "A"}]},
+    {"id": 2, "title": "Predictions by category", "type": "barchart", "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}, "targets": [{"expr": "sum by (category) (helpdesk_predictions_by_category_total)", "legendFormat": "{{category}}", "refId": "A"}]},
+    {"id": 3, "title": "Prediction errors", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0}, "targets": [{"expr": "sum(helpdesk_prediction_errors_total)", "refId": "A"}]},
+    {"id": 4, "title": "Prediction latency (p95)", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(helpdesk_prediction_latency_seconds_bucket[5m])))", "refId": "A"}]},
+    {"id": 5, "title": "Tickets by status", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}, "targets": [{"expr": "helpdesk_tickets_by_status", "legendFormat": "{{status}}", "refId": "A"}]}
+  ]
+}

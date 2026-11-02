@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: helpdesk
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.helpdesk.svc.cluster.local:9090
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: helpdesk
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: HelpDesk AI
+        orgId: 1
+        folder: HelpDesk AI
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: helpdesk
+data:
+  helpdesk.json: |
+    {
+      "title": "HelpDesk AI",
+      "uid": "helpdesk-ai",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "15s",
+      "time": {"from": "now-1h", "to": "now"},
+      "panels": [
+        {"id": 1, "title": "Predictions", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(helpdesk_predictions_total)", "refId": "A"}]},
+        {"id": 2, "title": "Predictions by category", "type": "barchart", "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}, "targets": [{"expr": "sum by (category) (helpdesk_predictions_by_category_total)", "legendFormat": "{{category}}", "refId": "A"}]},
+        {"id": 3, "title": "Prediction errors", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0}, "targets": [{"expr": "sum(helpdesk_prediction_errors_total)", "refId": "A"}]},
+        {"id": 4, "title": "Prediction latency (p95)", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(helpdesk_prediction_latency_seconds_bucket[5m])))", "refId": "A"}]},
+        {"id": 5, "title": "Tickets by status", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}, "targets": [{"expr": "helpdesk_tickets_by_status", "legendFormat": "{{status}}", "refId": "A"}]}
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: helpdesk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.2.4
+          ports:
+            - name: web
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-credentials
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-credentials
+                  key: admin-password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: datasource
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: datasource
+          configMap:
+            name: grafana-datasource
+        - name: provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard
+          configMap:
+            name: grafana-dashboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: helpdesk
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: web
+      port: 3000
+      targetPort: 3000
