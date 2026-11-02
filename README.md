@@ -98,3 +98,8 @@ Undiscounted USD retail baseline for one node in Central India: B2s VM $0.0448/h
 ## Cleanup
 
 For a local Compose run, stop containers with `docker compose down`; add `-v` only if you also intend to remove the local SQLite and monitoring volumes. For Azure, use `terraform destroy` only after reviewing its plan and deciding to remove the demonstration resource group and cluster. The project workflows do not automatically destroy infrastructure.
+
+![alt text](image/image.png)
+![alt text](image/image-1.png)
+![alt text](image/image2.png)
+![alt text](image/image3.png)
