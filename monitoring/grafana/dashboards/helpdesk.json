@@ -1,15 +1,86 @@
 {
-  "title": "HelpDesk AI",
+  "title": "HelpDesk AI | Operations",
   "uid": "helpdesk-ai",
+  "description": "Service health, model activity and ticket operations.",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
-  "time": {"from": "now-1h", "to": "now"},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "graphTooltip": 1,
   "panels": [
-    {"id": 1, "title": "Predictions", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(helpdesk_predictions_total)", "refId": "A"}]},
-    {"id": 2, "title": "Predictions by category", "type": "barchart", "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}, "targets": [{"expr": "sum by (category) (helpdesk_predictions_by_category_total)", "legendFormat": "{{category}}", "refId": "A"}]},
-    {"id": 3, "title": "Prediction errors", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0}, "targets": [{"expr": "sum(helpdesk_prediction_errors_total)", "refId": "A"}]},
-    {"id": 4, "title": "Prediction latency (p95)", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(helpdesk_prediction_latency_seconds_bucket[5m])))", "refId": "A"}]},
-    {"id": 5, "title": "Tickets by status", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}, "targets": [{"expr": "helpdesk_tickets_by_status", "legendFormat": "{{status}}", "refId": "A"}]}
+    {
+      "id": 1,
+      "title": "App availability",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "max(up{job=\"helpdesk-app\"})", "instant": true, "refId": "A"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red", "index": 1}, "1": {"text": "UP", "color": "green", "index": 0}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 2,
+      "title": "Predictions",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(helpdesk_predictions_total)", "instant": true, "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}},
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 3,
+      "title": "Tickets submitted",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "sum(helpdesk_tickets_submitted_total)", "instant": true, "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}},
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 4,
+      "title": "Prediction errors",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "targets": [{"expr": "sum(helpdesk_prediction_errors_total)", "instant": true, "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 5,
+      "title": "Prediction volume",
+      "description": "Predictions per minute.",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "targets": [{"expr": "sum(rate(helpdesk_predictions_total[$__rate_interval])) * 60", "legendFormat": "predictions/min", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never", "spanNulls": false}}},
+      "options": {"legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"}}
+    },
+    {
+      "id": 6,
+      "title": "Prediction latency · p95",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(helpdesk_prediction_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p95", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0, "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never", "spanNulls": false}}},
+      "options": {"legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"}}
+    },
+    {
+      "id": 7,
+      "title": "Predictions by category",
+      "type": "barchart",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "targets": [{"expr": "sum by (category) (helpdesk_predictions_by_category_total)", "legendFormat": "{{category}}", "instant": true, "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"}}
+    },
+    {
+      "id": 8,
+      "title": "Tickets by status",
+      "type": "barchart",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "targets": [{"expr": "helpdesk_tickets_by_status", "legendFormat": "{{status}}", "instant": true, "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "color": {"mode": "palette-classic"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"}}
+    }
   ]
 }
