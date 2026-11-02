@@ -26,6 +26,12 @@ resource "azurerm_kubernetes_cluster" "helpdesk" {
 
   role_based_access_control_enabled = true
 
+  azure_active_directory_role_based_access_control {
+    tenant_id              = var.tenant_id
+    admin_group_object_ids = var.aks_admin_group_object_ids
+    azure_rbac_enabled     = true
+  }
+
   network_profile {
     network_plugin    = "azure"
     load_balancer_sku = "standard"

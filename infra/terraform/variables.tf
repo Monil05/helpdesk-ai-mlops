@@ -19,6 +19,18 @@ variable "node_vm_size" {
   default     = "Standard_B2s_v2"
 }
 
+variable "tenant_id" {
+  description = "Microsoft Entra tenant used for AKS authentication."
+  type        = string
+  default     = "bd4a3f0a-4e4d-4fa5-917d-de4fca873197"
+}
+
+variable "aks_admin_group_object_ids" {
+  description = "Entra security groups with cluster administrator access."
+  type        = list(string)
+  default     = ["fbf4e581-8f8f-42c1-b9b8-a349a44b732e"]
+}
+
 variable "node_count" {
   description = "Fixed node count. Autoscaling is intentionally disabled."
   type        = number
